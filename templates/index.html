@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    <title>Showing the map</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous" />
+    <!-- Mapbox library imports -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.css" rel="stylesheet" />
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.js"></script>
+
+    <script src=" https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Balinese&display=swap" rel="stylesheet">
+    <meta property="og:title" content="Restaurant Listing" />
+    <meta property="og:description" content="mini project for Web Plus" />
+    <meta property="og:image"
+        content="https://www.astronauts.id/blog/wp-content/uploads/2022/08/Makanan-Khas-Daerah-tiap-Provinsi-di-Indonesia-Serta-Daerah-Asalnya.jpg" />
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <style>
+        .wrap {
+            width: 90%;
+            max-width: 750px;
+            margin: 0 auto;
+        }
+
+        .banner {
+            width: 100%;
+            height: 20vh;
+            background-image: url("https://www.astronauts.id/blog/wp-content/uploads/2022/08/Makanan-Khas-Daerah-tiap-Provinsi-di-Indonesia-Serta-Daerah-Asalnya.jpg");
+            background-position: center;
+            background-size: contain;
+            background-repeat: repeat;
+        }
+
+        h1.title {
+            font-family: "Jua", sans-serif;
+            color: white;
+            font-size: 3rem;
+        }
+
+        h5 {
+            font-family: "Jua", sans-serif;
+        }
+
+        .restaurant-list {
+            overflow: scroll;
+            width: 100%;
+            height: calc(20vh - 30px);
+            position: relative;
+        }
+
+        .card-title,
+        .card-subtitle {
+            display: inline;
+        }
+
+        #map {
+            width: 100%;
+            height: 50vh;
+            margin: 20px auto 20px auto;
+        }
+
+        .iw-inner {
+            padding: 10px;
+            font-size: smaller;
+        }
+    </style>
+    <script>
+        let map;
+
+        $(document).ready(function () {
+            mapboxgl.accessToken =
+                "pk.eyJ1Ijoibm9jdHlzcyIsImEiOiJjbDh2aTFqY2gwZTlsM3ZxcTRnOGZ0b3hmIn0.CDy8vkgqrviTRnZ-0SXeow";
+            map = new mapboxgl.Map({
+                container: "map", // container ID
+                center: [-122.420679, 37.772537], // starting position [lng, lat]
+                zoom: 13, // starting zoom
+                style: "mapbox://styles/mapbox/streets-v11", // style URL or style object
+                hash: true, // sync `center`, `zoom`, `pitch`, and `bearing` with URL
+                // Use `transformRequest` to modify requests that begin with `http://myHost`.
+                transformRequest: (url, resourceType) => {
+                    if (resourceType === "Source" && url.startsWith("http://myHost")) {
+                        return {
+                            url: url.replace("http", "https"),
+                            headers: { "my-custom-header": true },
+                            credentials: "include", // Include cookies for cross-origin requests
+                        };
+                    }
+                },
+            });
+
+            const nav = new mapboxgl.NavigationControl({
+                visualizePitch: true,
+            });
+            map.addControl(nav, "bottom-right");
+
+            get_restaurants();
+        });
+
+        function make_card(i, restaurant, coordinates) {
+            let html_temp = `<div class="card" id="card-${i}" onclick="map.flyTo({center: ${coordinates}});">
+                          <div class="card-body">
+                              <h5 class="card-title"><a href="${restaurant.link}" class="restaurant-title">${restaurant.name}</a></h5>
+                              <h6 class="card-subtitle mb-2 text-muted">${restaurant.categories}</h6>
+                              <p class="card-text">${restaurant.location}</p>
+                          </div>
+                       </div>`;
+            $("#restaurant-box").append(html_temp);
+        }
+
+        function get_restaurants() {
+            $.ajax({
+                type: "GET",
+                url: "/restaurants",
+                data: {},
+                success: function (response) {
+                    let restaurants = response["restaurants"];
+                    for (let i = 0; i < restaurants.length; i++) {
+                        let restaurant = restaurants[i];
+                        console.log(restaurant);
+                        let lng = restaurant['coordinates'][0]
+                        let lat = restaurant['coordinates'][1]
+                        let coordinates = [lng,lat]
+                        make_card(i, restaurant, coordinates);
+                        make_marker(coordinates);
+                        add_info(i, restaurant, coordinates);
+                    }
+                },
+            });
+        }
+
+        function make_marker(restaurant) {
+            new mapboxgl.Marker().setLngLat(restaurant).addTo(map);
+        }
+
+        function scroll_to_card(i) {
+            $("#restaurant-box").animate(
+                {
+                    scrollTop:
+                        $("#restaurant-box").get(0).scrollTop +
+                        $(`#card-${i}`).position().top,
+                },
+                1000
+            );
+        }
+
+        function add_info(i, restaurant, coordinates) {
+            new mapboxgl.Popup({
+                offset: {
+                    bottom: [0, -35],
+                },
+            })
+                .setLngLat(coordinates)
+                .setHTML(
+                    `<div class="iw-inner" onclick="map.flyTo({center: ${coordinates}}); scroll_to_card(${i});">
+                          <h5>${restaurant.name}</h5>
+                          <p>${restaurant.location}
+                          </div>`
+                )
+                .setMaxWidth("300px")
+                .addTo(map);
+        }
+    </script>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="banner">
+            <div class="d-flex flex-column align-items-center" style="
+            background-color: rgba(0, 0, 0, 0.5);
+            width: 100%;
+            height: 100%;">
+                <h1 class="title mt-5 mb-2">Restaurant Map</h1>
+            </div>
+        </div>
+        <div id="map"></div>
+
+        <div class="restaurant-list" id="restaurant-box">
+            <div class="card" id="card-0">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <a href="#" class="restaurant-title">The Best Restaurant</a>
+                    </h5>
+                    <h6 class="card-subtitle mb-2 text-muted">Ramen</h6>
+                    <p class="card-text">Address of the restaurant</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Option 1: Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p"
+        crossorigin="anonymous"></script>
+</body>
+
+</html>
